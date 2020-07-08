@@ -1,5 +1,5 @@
 import os
-import seam
+import seam.src.seam.utils.utils as utils
 
 ###############################################################################
 import logging
@@ -19,4 +19,4 @@ construct_mesh = True
 #
 #     if construct_mesh:
 #         ### load points list on both curves
-#         pts_crv_01 =
+#         pts_crv_01 = 

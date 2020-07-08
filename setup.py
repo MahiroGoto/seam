@@ -27,7 +27,7 @@ setup(
     long_description = long_description,
     long_description_content_type = "text/markdown",
     url="https://github.com/MahiroGoto/seam",
-    author="MahiroGoto",
+    author="Mahiro Goto",
     author_email="magoto@student.ethz.ch",
     license="MIT license",
     classifiers=[
