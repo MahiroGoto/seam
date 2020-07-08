@@ -1,5 +1,5 @@
 import os
-import seams.utils.utils as utils
+import seam
 
 ###############################################################################
 import logging
@@ -15,8 +15,8 @@ DATA_PATH = 'G:/.shortcut-targets-by-id/19j2p-s21q1pYuoGXuk11Bu934R1tS8MU/MAS Th
 
 construct_mesh = True
 
-if __name__ = "__main__":
-
-    if construct_mesh:
-        ### load points list on both curves
-        pts_crv_01 =
+# if __name__ = "__main__":
+#
+#     if construct_mesh:
+#         ### load points list on both curves
+#         pts_crv_01 =

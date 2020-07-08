@@ -5,7 +5,6 @@ import logging
 
 logger = logging.getLogger('logger')
 
-
 #####################
 ### Json utils
 #####################

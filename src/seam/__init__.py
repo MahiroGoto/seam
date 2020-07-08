@@ -1,6 +1,6 @@
 """
 *********************************************************
-seams
+seam
 *********************************************************
 
 .. current module:: seams
@@ -12,7 +12,7 @@ seams
 """
 
 from __future__ import print_function
-
+import compas
 import os
 
 __author__ = ["Mahiro Goto"]
@@ -31,14 +31,14 @@ try:
     git_head_file = compas._os.absjoin(HOME, '.git', 'HEAD')
 
     if os.path.exists(git_head_file):
-        with open(git_head_file, 'r') as git_head_file:
+        with open(git_head_file, 'r') as git_head:
             _, ref_path = git_head.read().strip().split(' ')
             ref_path = ref_path.split('/')
 
             git_head_refs_file = compas._os.absjoin(HOME, '.git', *ref_path)
 
         if os.path.exists(git_head_refs_file):
-            with open(git_head_refs_file, 'r') as git_head_refs:
+            with open(git_head_refs_file, 'r') as git_head_ref:
                 git_commit = git_head_ref.read().strip()
                 __version__ += '_' + git_commit[:8]
 except Exception:
