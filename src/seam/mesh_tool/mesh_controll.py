@@ -4,6 +4,7 @@ import numpy as np
 import open3d as o3d
 
 import stratum.utils.utils as utils
+import
 
 def add_vertex_from_PtsList(mesh, points_list):
     mesh = Mesh()
