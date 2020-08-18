@@ -44,5 +44,25 @@ def polygon(plane_const, radius, vNum, closed=False):
         polypts.append(point)
     return polypts
 
+def get_closest_point_from_pts_list(point, pts_list):
+    distances = [point.distance_to_point(target) for target in pts_list]
+    distances.sort()
+    minimum = round(distances[0], 5)
+    for i, targetPt in enumerate(pts_list):
+        distance = round(point.distance_to_point(targetPt), 5)
+        if distance == minimum:
+            closestPt = targetPt
+            index = i
+            break
+    return closestPt, minimum, index
+
+
+
+
+
+
+
+
+
 
 
