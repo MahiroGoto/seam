@@ -27,85 +27,104 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 ########################
 
-DATA_PATH = "G:/.shortcut-targets-by-id/19j2p-s21q1pYuoGXuk11Bu934R1tS8MU/MAS Thesis 2020/3_Prototype" \
-            "/19_overlapping_connection/data_updated/"
-OBJ_INPUT_NAME = "mesh.obj"
+
+
+PATH = "G:/.shortcut-targets-by-id/19j2p-s21q1pYuoGXuk11Bu934R1tS8MU/MAS Thesis 2020/3_Prototype" \
+            "/20_overlapping_connection_2.0/"
+
+FOLDER = "DATA/"
+OBJ_INPUT_NAME = "MESH.obj"
+
+DATA_PATH = PATH + FOLDER
+
 
 get_splitted_mesh = True
-create_layers = False
-offset_layers = True
+create_layers = True
+offset_layers = False
 
 
 if __name__ == "__main__":
 
     ### --- Load initial_mesh
-    initial_mesh = Mesh.from_obj(os.path.join(DATA_PATH, OBJ_INPUT_NAME))
-    print("Vertices : %d , Faces : %d " % (len(list(initial_mesh.vertices())), len(list(initial_mesh.faces()))))
+    MESH = Mesh.from_obj(os.path.join(DATA_PATH, OBJ_INPUT_NAME))
+    print("Vertices : %d , Faces : %d " % (len(list(MESH.vertices())), len(list(MESH.faces()))))
 
     ### --- Load seams points
     seams_pts_Data = utils.load_from_Json(DATA_PATH, "_seams_pts.json")
     seams_pts = boundary_crv.get_seams_pts_from_data(seams_pts_Data)
 
     ## organize vertices data (atributes) to convert compas Point ##
-    v_keys = list(initial_mesh.vertices(data=False))
-    v_atris, faces = initial_mesh.to_vertices_and_faces()
+    v_keys = list(MESH.vertices(data=False))
+    v_atris, faces = MESH.to_vertices_and_faces()
     vertices = [Point(v_atr[0], v_atr[1], v_atr[2]) for v_atr in v_atris]
 
     if get_splitted_mesh:
         ## get seam vertex vertices ##
-        seam_ids_list = boundary_crv.get_seams_vertex_indices_first_and_second(initial_mesh, seams_pts)
+        seam_ids_list = boundary_crv.get_seams_vertex_indices_first_and_second(MESH, seams_pts)
 
         ##############################################
         ## normal distances from each seam vertices ##
-        seam_distances_00, seam_distances_01 = seam_crv.get_distances_from_two_seams(initial_mesh, seam_ids_list)
+        seam_distances_00, seam_distances_01 = seam_crv.get_distances_from_two_seams(MESH, seam_ids_list)
 
         ## measurement of longest and shortest way and shortest way ##
-        longest_v_00, longest_v_01, longest_distance = distance_calculation.get_longest_way_between_two_seams(initial_mesh, seam_ids_list)
-        shortest_v_00, shortest_v_01, shortest_distance = distance_calculation.get_shortest_way_between_two_seams(initial_mesh, seam_ids_list)
+        longest_v_00, longest_v_01, longest_distance = distance_calculation.get_longest_way_between_two_seams(MESH, seam_ids_list)
+        shortest_v_00, shortest_v_01, shortest_distance = distance_calculation.get_shortest_way_between_two_seams(MESH, seam_ids_list)
 
         ## mid differences ##
-        SD_mid = seam_crv.get_distance_differences_between_two_seams(initial_mesh, seam_ids_list, time=0.5)
-        normal_SD_00 = seam_crv.get_distance_differences_between_two_seams(initial_mesh, seam_ids_list, time=0.52)
-        normal_SD_01 = seam_crv.get_distance_differences_between_two_seams(initial_mesh, seam_ids_list, time=0.48)
-
+        SD_mid = seam_crv.get_distance_differences_between_two_seams(MESH, seam_ids_list, time=0.5)
+        mid_crv_pts = seam_crv.get_curve_pts_from_distance_differences_on_Mesh(MESH, SD_mid)
+        # utils.save_json(mid_crv_pts, DATA_PATH, "mid_crv_pts.json")
+        normal_SD_00 = seam_crv.get_distance_differences_between_two_seams(MESH, seam_ids_list, time=0.5)
+        normal_SD_01 = seam_crv.get_distance_differences_between_two_seams(MESH, seam_ids_list, time=0.5)
         ## custom differences ##
-        custom_SD_00 = seam_crv.get_distance_differences_with_cos_from_first(initial_mesh, seam_ids_list)
-        custom_SD_01 = seam_crv.get_distance_differences_with_cos_from_second(initial_mesh, seam_ids_list)
+        custom_SD_00 = seam_crv.get_distance_differences_with_cos_from_first(MESH, seam_ids_list)
+        custom_SD_01 = seam_crv.get_distance_differences_with_cos_from_second(MESH, seam_ids_list)
 
         ## split the initial mesh into two pieces ##
-        piece_00, _ = seam_crv.split_mesh_with_single_differences_crv(initial_mesh, custom_SD_00)
-        _, piece_01 = seam_crv.split_mesh_with_single_differences_crv(initial_mesh, custom_SD_01)
+        piece_00, _ = seam_crv.split_mesh_with_single_differences_crv(MESH, custom_SD_00)
+        _, piece_01 = seam_crv.split_mesh_with_single_differences_crv(MESH, custom_SD_01)
 
-        ## split the initial mesh into three parts to get extra part ##
-        extention_00 = seam_crv.split_mesh_with_double_differences_crvs(initial_mesh, normal_SD_00, custom_SD_00)
-        extention_01 = seam_crv.split_mesh_with_double_differences_crvs(initial_mesh, custom_SD_01, custom_SD_01)
+        ## get points of the extra part ##
+        extention_00, all_vPts_00 = seam_crv.split_mesh_with_double_differences_crvs(MESH, normal_SD_00, custom_SD_00)
+        extention_pts_00 = seam_crv.get_extention_part_pts(all_vPts_00, mid_crv_pts)
+        extention_01, all_vPts_01 = seam_crv.split_mesh_with_double_differences_crvs(MESH, custom_SD_01, normal_SD_01)
+        extention_pts_01 = seam_crv.get_extention_part_pts(all_vPts_01, mid_crv_pts)
 
-        ## get the extra part of the splitted pieces ##
+
+        extention_pts_00 = utils.convert_compas_Points_list_to_Data(extention_pts_00)
+        extention_pts_01 = utils.convert_compas_Points_list_to_Data(extention_pts_01)
+        utils.save_json(extention_pts_00, DATA_PATH, "extention_pts_00.json")
+        utils.save_json(extention_pts_01, DATA_PATH, "extention_pts_01.json")
+
         piece_00.to_obj(os.path.join(DATA_PATH, "piece_00.obj"))
-        extention_00.to_obj(os.path.join(DATA_PATH, "extention_00.obj"))
+        piece_01.to_obj(os.path.join(DATA_PATH, "piece_01.obj"))
 
 
     if create_layers:
-
         ################
         ## first mesh ##
         """
         input : mesh, seams_data
         """
-        first_mesh = Mesh.from_obj(os.path.join(DATA_PATH, "splitted_mesh_00.obj"))
-        print("first_mesh Vertices : %d , Faces : %d " % (len(list(first_mesh.vertices())), len(list(first_mesh.faces()))))
+        piece_00 = Mesh.from_obj(os.path.join(DATA_PATH, "piece_00.obj"))
+        print("piece_00 Vertices : %d , Faces : %d " % (len(list(piece_00.vertices())), len(list(piece_00.faces()))))
 
-        first_piece_seams_data = utils.load_from_Json(DATA_PATH, "first_piece_seams_data.json")
-        first_seams_pts = boundary_crv.get_seams_pts_from_data(first_piece_seams_data)
-        first_seam_ids_list = boundary_crv.get_seams_vertex_indices_first_and_second(first_mesh, first_seams_pts)
+        piece_00_seams_data = utils.load_from_Json(DATA_PATH, "_piece_00_seams_data.json")
+        piece_00_seams_pts = boundary_crv.get_seams_pts_from_data(piece_00_seams_data)
+        piece_00_seam_ids_list = boundary_crv.get_seams_vertex_indices_first_and_second(piece_00, piece_00_seams_pts)
 
         ## check the gap_ratio ##
-        trans_bound, gap_ratio = distance_calculation.get_gap_ratio(first_mesh, first_seam_ids_list)
-        print("gap_ratio :", gap_ratio)
+        trans_bound, gap_ratio = distance_calculation.get_gap_ratio(piece_00, piece_00_seam_ids_list)
+        print("gap_ratio_00 :", gap_ratio)
+
+        ## geodesics output ##
+        dis00, dis01 = seam_crv.get_distances_from_two_seams(piece_00, piece_00_seam_ids_list)
+        utils.save_json(dis00, DATA_PATH, "distance_00.json")
+        utils.save_json(dis01, DATA_PATH, "distance_01.json")
 
         ## get the layer number ##
-        layer_num = path_generation.get_layer_number(first_mesh, first_seam_ids_list)
-        print("first piece layer_num :", layer_num)
+        layer_num = path_generation.get_layer_number(piece_00, piece_00_seam_ids_list)
+        print("piece_00 layer_num :", layer_num)
         ## get layer paths with points ##
         layer_paths_00 = []
         layer_paths_00_data = []
@@ -115,8 +134,8 @@ if __name__ == "__main__":
                 time = time_step * i - time_step / 100
             else:
                 time = time_step * i
-            differences = seam_crv.get_distance_differences_between_two_seams(first_mesh, first_seam_ids_list, time)
-            layer_pts = seam_crv.get_curve_pts_from_distance_differences_on_Mesh(first_mesh, differences)
+            differences = seam_crv.get_distance_differences_between_two_seams(piece_00, piece_00_seam_ids_list, time)
+            layer_pts = seam_crv.get_curve_pts_from_distance_differences_on_Mesh(piece_00, differences)
             ## get layer path pts with params ##
             path_pts = path_generation.get_layer_path_pts_from_list_of_layer_pts_on_mesh(layer_pts)
             layer_paths_00.append(path_pts)
@@ -128,16 +147,16 @@ if __name__ == "__main__":
 
         #################
         ## second mesh ##
-        second_mesh = Mesh.from_obj(os.path.join(DATA_PATH, "splitted_mesh_01_.obj"))
-        print("second_mesh Vertices: %d, Faces: %d" % (len(list(second_mesh.vertices())), len(list(second_mesh.faces()))))
+        piece_01 = Mesh.from_obj(os.path.join(DATA_PATH, "piece_01.obj"))
+        print("piece_01 Vertices: %d, Faces: %d" % (len(list(piece_01.vertices())), len(list(piece_01.faces()))))
 
-        second_piece_seams_data = utils.load_from_Json(DATA_PATH, "second_piece_seams_data.json")
-        second_seams_pts = boundary_crv.get_seams_pts_from_data(second_piece_seams_data)
-        second_seam_ids_list = boundary_crv.get_seams_vertex_indices_first_and_second(second_mesh, second_seams_pts)
+        piece_01_seams_data = utils.load_from_Json(DATA_PATH, "_piece_01_seams_data.json")
+        piece_01_seams_pts = boundary_crv.get_seams_pts_from_data(piece_01_seams_data)
+        piece_01_seam_ids_list = boundary_crv.get_seams_vertex_indices_first_and_second(piece_01, piece_01_seams_pts)
 
         ## get layer number ##
-        layer_num = path_generation.get_layer_number(second_mesh, second_seam_ids_list)
-        print("second piece layer_num :", layer_num)
+        layer_num = path_generation.get_layer_number(piece_01, piece_01_seam_ids_list)
+        print("piece_01 layer_num :", layer_num)
         ## get layer paths with points ##
         layer_paths_01 = []
         layer_paths_01_data = []
@@ -147,8 +166,8 @@ if __name__ == "__main__":
                 time = time_step * i - time_step / 100
             else:
                 time = time_step * i
-            differences = seam_crv.get_distance_differences_between_two_seams(second_mesh, second_seam_ids_list, time)
-            layer_pts = seam_crv.get_curve_pts_from_distance_differences_on_Mesh(second_mesh, differences)
+            differences = seam_crv.get_distance_differences_between_two_seams(piece_01, piece_01_seam_ids_list, time)
+            layer_pts = seam_crv.get_curve_pts_from_distance_differences_on_Mesh(piece_01, differences)
             ## get layer path pts with params ##
             path_pts = path_generation.get_layer_path_pts_from_list_of_layer_pts_on_mesh(layer_pts)
             layer_paths_01.append(path_pts)

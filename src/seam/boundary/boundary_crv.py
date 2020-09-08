@@ -5,11 +5,10 @@ import math
 import numpy as np
 
 from compas.geometry import Vector, Point, Rotation, Plane
-from compas.datastructures import Mesh
 
 from seam.utils import utils, primitive
+from seam.boundary import seam_crv, distance_calculation
 from seam.Branch import discrete_curve, boundary_control
-from seam.boundary import distance_calculation
 import igl
 
 import logging
@@ -24,287 +23,126 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 ########################
 
+def get_boundary_pts_list_from_data(seams_pts_Data):
+    seam_pts_list = []
+    for seam_pts in seams_pts_Data:
+        s_pts = utils.convert_data_pts_list_to_compas_pts(seam_pts, ROUND=False)
+        seam_pts_list.append(s_pts)
+    return seam_pts_list
 
 
-###############################
-## get the distance differences
-###############################
-def get_distances_from_two_seams(mesh, seam_ids_list):
-    boundary_ids_00 = seam_ids_list[0]
-    boundary_ids_01 = seam_ids_list[1]
-    distance_00 = list(distance_calculation.get_geodesic_distances_to_every_vertex(mesh, boundary_ids_00))
-    distance_01 = list(distance_calculation.get_geodesic_distances_to_every_vertex(mesh, boundary_ids_01))
-    return distance_00, distance_01
+def get_boundary_vertex_indices(mesh, seam_pts):
+    """
+    useful for calculate geodesic distance between boundaries
+    """
+    v, faces = mesh.to_vertices_and_faces()
+    vertices = [Point(v_coods[0], v_coods[1], v_coods[2]) for v_coods in v]
 
-def get_distance_differences_between_two_seams(mesh, seam_ids_list, time=0.5, ABS=False):
-    distance_00, distance_01 = get_distances_from_two_seams(mesh, seam_ids_list)
-    if ABS:
-        differences = [abs(d2 * time - d1 * (1 - time)) for d1, d2 in zip(distance_00, distance_01)]
-    else:
-        differences = [(d2 * time - d1 * (1 - time)) for d1, d2 in zip(distance_00, distance_01)]
-    return differences
+    seam_ids = []
+    for bPt in seam_pts:
+        closestPt, minimun, index = primitive.get_closest_point_from_pts_list(bPt, vertices)
+        if index not in seam_ids:
+            seam_ids.append(index)
+    return seam_ids
 
 
-def get_distance_differences_with_cos_from_first(mesh, seam_ids_list, time=0.5, ABS=False):
-    seam_distances_00, seam_distances_01 = get_distances_from_two_seams(mesh, seam_ids_list)
-    seam_differences_00 = []
-    shortest_v_00, shortest_v_01, shortest_distance = distance_calculation.get_shortest_way_between_two_seams(mesh, seam_ids_list)
-    longest_v_00, longest_v_01, longest_distance = distance_calculation.get_longest_way_between_two_seams(mesh, seam_ids_list)
+def get_boundary_vertex_keys_list_from_seam_pts_list(mesh, seams_pts):
+    seam_vertex_keys_list = []
+    for seam_pts in seams_pts:
+        seam_ids = get_boundary_vertex_indices(mesh, seam_pts)
+        seam_vertex_keys_list.append(seam_ids)
+    return seam_vertex_keys_list
 
-    for i in range(len(seam_distances_00)):
-        d0 = seam_distances_00[i]
-        d1 = seam_distances_01[i]
-        way_length = d0 + d1
-        way_gap = abs(way_length - (shortest_distance+longest_distance)/2)
-        value = (way_gap / abs(longest_distance - (shortest_distance+longest_distance)/2)) * math.pi
-        add_time = 0.17 * math.cos(value)
-        if add_time > 0:
-            add_time = add_time * 0
 
-        if ABS:
-            difference = abs(d0 * (time+add_time) - d1 * (1 - (time+add_time)))
+class Boundary:
+    """
+    get "seam_pts_list" and "seam_vertex_keys_list"
+    """
+    def __init__(self, MESH, boundary_pts_data_list):
+        self.boundary_pts_data_list = boundary_pts_data_list
+        self.MESH = MESH
+
+        self.boundary_pts_list = []
+        self.boundary_vertex_keys_list = []
+
+    def get_boundaries(self):
+        self.get_boundary_pts_list_from_data()
+        self.get_boundary_vertex_keys_list()
+        logger.info("get boundary_vertex_keys_list")
+
+    def get_boundary_vertex_keys_list(self):
+        v, f = self.MESH.to_vertices_and_faces()
+        vertices = [Point(v_coords[0], v_coords[1], v_coords[2]) for v_coords in v]
+        for seam_pts in self.boundary_pts_list:
+            seam_vkeys = []
+            for seam_pt in seam_pts:
+                closestPt, minimum, key = primitive.get_closest_point_from_pts_list(seam_pt, vertices)
+                if key not in seam_vkeys:
+                    seam_vkeys.append(key)
+            self.boundary_vertex_keys_list.append(seam_vkeys)
+
+    def get_boundary_pts_list_from_data(self):
+        for seam_pts_data in self.boundary_pts_data_list:
+            seam_pts = utils.convert_data_pts_list_to_compas_pts(seam_pts_data)
+            self.boundary_pts_list.append(seam_pts)
+
+
+##################################
+## get the branching node seam ##
+##################################
+def get_proper_boundary_centrePt_on_branching_node(mesh, boundary_distances, max_radius=35, even_distance=False):
+    cross_section_length = max_radius * 2 * math.pi
+    max_distance = max(boundary_distances)
+    time_step = 1 / 99
+    skeletonPts = []
+    for i in range(100):
+        found = False
+        time = time_step * i
+        difs = []
+        for distance in boundary_distances:
+            dif = max_distance * time - distance
+            difs.append(dif)
+        curve_pts, centrePt = seam_crv.get_layer_crvPts_from_distance_differences_on_Mesh(mesh, difs)
+        # print("pt :", curve_pts[0])
+        # x = sum([pt.x for pt in curve_pts]) / len(curve_pts)
+        # y = sum([pt.y for pt in curve_pts]) / len(curve_pts)
+        # z = sum([pt.z for pt in curve_pts]) / len(curve_pts)
+        # centrePt = Point(x, y, z)
+        skeletonPts.append(centrePt)
+        length = seam_crv.layer_curve_length(curve_pts)
+        if i == 0:
+            original_l = length
         else:
-            difference = (d0 * (time+add_time) - d1 * (1 - (time+add_time)))
-        seam_differences_00.append(difference)
-    return seam_differences_00
+            if even_distance:
+                if length > cross_section_length:
+                    found = True
+            elif not even_distance:
+                if length > original_l * 1.5 or length > cross_section_length:
+                    found = True
+        if found:
+            seam_time = time - time_step
+            ## create the ccentre pt of this cross crv ##
+            boundary_centrePt = skeletonPts[-1]
+            break
+    skeletonPts_out = []
+    for i, sPt in enumerate(skeletonPts):
+        if sPt != boundary_centrePt:
+            if i % 20 == 0: skeletonPts_out.append(sPt)
+    return boundary_centrePt, skeletonPts_out
+
+def get_boundary_centrePts_list_on_branching_node(mesh, distances_list, max_radius, even_distance=False):
+    centrePt_list = []
+    skeletonPts_list = []
+    for seam_distances in distances_list:
+        seam_centrePt, skeletonPts = get_proper_boundary_centrePt_on_branching_node(mesh, seam_distances, max_radius, even_distance)
+        centrePt_list.append(seam_centrePt)
+        skeletonPts_list.append(skeletonPts)
+    return centrePt_list, skeletonPts_list
 
 
-def get_distance_differences_with_cos_from_second(mesh, seam_ids_list, time=0.5, ABS=False):
-    seam_distances_00, seam_distances_01 = get_distances_from_two_seams(mesh, seam_ids_list)
-    seam_differences_01 = []
-    shortest_v_00, shortest_v_01, shortest_distance = distance_calculation.get_shortest_way_between_two_seams(mesh, seam_ids_list)
-    longest_v_00, longest_v_01, longest_distance = distance_calculation.get_longest_way_between_two_seams(mesh, seam_ids_list)
-
-    for i in range(len(seam_distances_00)):
-        d0 = seam_distances_00[i]
-        d1 = seam_distances_01[i]
-        way_length = d0 + d1
-        way_gap = abs(way_length - (shortest_distance+longest_distance)/2)
-        value = (way_gap / abs(longest_distance - (shortest_distance+longest_distance)/2)) * math.pi
-        add_time = 0.17 * math.cos(value)
-        if add_time < 0:
-            add_time = add_time * 0
-        if ABS:
-            difference = abs(d0 * (time+add_time) - d1 * (1 - (time+add_time)))
-        else:
-            difference = (d0 * (time+add_time) - d1 * (1 - (time+add_time)))
-        seam_differences_01.append(difference)
-    return seam_differences_01
 
 
-####################################################################################
-## marching triangle for building the boundary curve and mesh splitting
-####################################################################################
 
-def get_curve_pts_from_distance_differences_on_Mesh(mesh, differences):
-    v_atris, faces = mesh.to_vertices_and_faces()
-    vertices = [Point(v_atr[0], v_atr[1], v_atr[2]) for v_atr in v_atris]
-    ## merching triangles to get the boundary points on the mesh edges ##
-    crv_pts_list = []
-    for face in faces:
-        # v_distances = [differences[v_key] for v_key in face]
-        nega = []
-        posi = []
-        # for i, v_d in enumerate(v_distances):
-        for i, v_key in enumerate(face):
-            seam_distance = differences[v_key]
-            if seam_distance < 0:
-                nega.append(v_key)
-            elif seam_distance >= 0:
-                posi.append(v_key)
-        if len(nega) != 0 and len(posi) != 0:
-            crvPts = []
-            if len(nega) == 1:
-                fromPt = nega[0]
-                ## from pt is "vertices[fromPt]"
-                from_distance = differences[fromPt]
-                for toPt in posi:
-                    to_distance = differences[toPt]
-                    ## toPt is "vertices[toPt]"
-                    dim = abs(from_distance) + abs(to_distance)
-                    point = vertices[fromPt] * (abs(to_distance)/dim) + vertices[toPt] * (abs(from_distance)/dim)
-                    crvPts.append(point)
-            elif len(posi) == 1:
-                fromPt = posi[0]
-                ## from pt is "vertices[fromPt]"
-                from_distance = differences[fromPt]
-                for toPt in nega:
-                    to_distance = differences[toPt]
-                    ## toPt is "vertices[toPt]"
-                    dim = abs(from_distance) + abs(to_distance)
-                    point = vertices[fromPt] * (abs(to_distance)/dim) + vertices[toPt] * (abs(from_distance)/dim)
-                    crvPts.append(point)
-            crv_pts_list.append(crvPts)
-
-    ## create the boundary curve from merching triangles ##
-    print("length of crv_pts :", len(crv_pts_list))
-    crv_pts = crv_pts_list[0]
-    current = crv_pts[0]
-    next = crv_pts[1]
-    curve_points = []
-    curve_points.append(next)
-    exist = [0]
-    for i in range(len(crv_pts_list)):
-        for j, pts in enumerate(crv_pts_list):
-            if j not in exist:
-                if next in pts:
-                    exist.append(j)
-                    crv_pts = pts
-                    if crv_pts[0] == next:
-                        next = crv_pts[1]
-                    else:
-                        next = crv_pts[0]
-                    curve_points.append(next)
-    # print("number of the curve_points :", len(curve_points))
-    return curve_points
-
-
-#########################################################
-## mesh processing tools
-#########################################################
-
-def check_exist_vertex(mesh, pt):
-    v_atrs, faces = mesh.to_vertices_and_faces()
-    # print("v_atrs :", v_atrs)
-    vertices = [Point(x=v_atr[0], y=v_atr[1], z=v_atr[2]) for v_atr in v_atrs]
-    if pt in vertices:
-        index = vertices.index(pt)
-        is_exist = True
-    else:
-        index = None
-        is_exist = False
-    return is_exist, index
-
-def split_mesh_with_single_differences_crv(mesh, differences):
-    v_atrs, faces = mesh.to_vertices_and_faces()
-    ## split mesh ##
-    mesh00 = Mesh()
-    mesh01 = Mesh()
-    faces_00 = []
-    faces_01 = []
-    vertices = [Point(x=v_atr[0], y=v_atr[1], z=v_atr[2]) for v_atr in v_atrs]
-    for face in faces:
-        # print("face :", face)
-        nega = []
-        posi = []
-        for v_ind in face:
-            diffe = differences[v_ind]
-            if diffe < 0:
-                nega.append(v_ind)
-            elif diffe >= 0:
-                posi.append(v_ind)
-
-        if len(nega) != 0 and len(posi) != 0:
-            crvPts = []
-            if len(nega) == 1:
-                fromPt = nega[0]
-                ## from pt is "vertices[fromPt]"
-                from_distance = differences[fromPt]
-                for toPt in posi:
-                    to_distance = differences[toPt]
-                    ## toPt is "vertices[toPt]"
-                    dim = abs(from_distance) + abs(to_distance)
-                    point = vertices[fromPt] * (abs(to_distance)/dim) + vertices[toPt] * (abs(from_distance)/dim)
-                    crvPts.append(point)
-
-                add_pts_00 = [vertices[fromPt], crvPts[0], crvPts[1]]
-                face_00 = []
-                for add_pt in add_pts_00:
-                    is_exist, index = check_exist_vertex(mesh00, add_pt)
-                    if is_exist:
-                        key = index
-                    else:
-                        key = mesh00.add_vertex(x=add_pt.x, y=add_pt.y, z=add_pt.z)
-                    face_00.append(key)
-                faces_00.append(face_00)
-
-                add_pts_01 = [vertices[posi[0]], vertices[posi[1]], crvPts[1], crvPts[0]]
-                face_01 = []
-                for add_pt in add_pts_01:
-                    is_exist, index = check_exist_vertex(mesh01, add_pt)
-                    if is_exist:
-                        key = index
-                    else:
-                        key = mesh01.add_vertex(x=add_pt.x, y=add_pt.y, z=add_pt.z)
-                    face_01.append(key)
-                face_01_half00 = [face_01[0], face_01[1], face_01[2]]
-                face_01_half01 = [face_01[2], face_01[3], face_01[0]]
-                faces_01.append(face_01_half00)
-                faces_01.append(face_01_half01)
-
-            elif len(posi) == 1:
-                fromPt = posi[0]
-                from_distance = differences[fromPt]
-                for toPt in nega:
-                    to_distance = differences[toPt]
-                    ## toPt is "vertices[toPt]"
-                    dim = abs(from_distance) + abs(to_distance)
-                    point = vertices[fromPt] * (abs(to_distance)/dim) + vertices[toPt] * (abs(from_distance)/dim)
-                    crvPts.append(point)
-
-                add_pts_01 = [vertices[fromPt], crvPts[0], crvPts[1]]
-                face_01 = []
-                for add_pt in add_pts_01:
-                    is_exist, index = check_exist_vertex(mesh01, add_pt)
-                    if is_exist:
-                        key = index
-                    else:
-                        key = mesh01.add_vertex(x=add_pt.x, y=add_pt.y, z=add_pt.z)
-                    face_01.append(key)
-                faces_01.append(face_01)
-
-                add_pts_00 = [vertices[nega[0]], vertices[nega[1]], crvPts[1], crvPts[0]]
-                face_00 = []
-                for add_pt in add_pts_00:
-                    is_exist, index = check_exist_vertex(mesh00, add_pt)
-                    if is_exist:
-                        key = index
-                    else:
-                        key = mesh00.add_vertex(x=add_pt.x, y=add_pt.y, z=add_pt.z)
-                    face_00.append(key)
-                face_00_half_00 = [face_00[0], face_00[1], face_00[2]]
-                face_00_half_01 = [face_00[2], face_00[3], face_00[0]]
-                faces_00.append(face_00_half_00)
-                faces_00.append(face_00_half_01)
-
-        elif len(posi) == 0:
-            face_00 = []
-            for v_ind in face:
-                v_atri = mesh.vertex_attributes(v_ind)
-                pt = Point(x=v_atri["x"], y=v_atri["y"], z=v_atri["z"])
-                is_exist, index = check_exist_vertex(mesh00, pt)
-                if is_exist:
-                    key = index
-                else:
-                    key = mesh00.add_vertex(x=v_atri["x"], y=v_atri["y"], z=v_atri["z"])
-                face_00.append(key)
-                # print("v_atri :", v_atri)
-            faces_00.append(face_00)
-
-        elif len(nega) == 0:
-            face_01 = []
-            for v_ind in face:
-                v_atri = mesh.vertex_attributes(v_ind)
-                pt = Point(x=v_atri["x"], y=v_atri["y"], z=v_atri["z"])
-                is_exist, index = check_exist_vertex(mesh01, pt)
-                if is_exist:
-                    key = index
-                else:
-                    key = mesh01.add_vertex(x=v_atri["x"], y=v_atri["y"], z=v_atri["z"])
-                face_01.append(key)
-            faces_01.append(face_01)
-    ## finally add faces ##
-    for face_00 in faces_00:
-        mesh00.add_face(vertices=face_00)
-    for face_01 in faces_01:
-        mesh01.add_face(vertices=face_01)
-
-    v00, f00 = mesh00.to_vertices_and_faces()
-    v01, f01 = mesh01.to_vertices_and_faces()
-    print("mesh00 ver_num : %d , face_num : %d " % (len(v00), len(f00)))
-    print("mesh01 ver_num : %d , face_num : %d " % (len(v01), len(f01)))
-
-    return mesh00, mesh01
 
 
 

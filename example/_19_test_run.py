@@ -11,7 +11,7 @@ from compas.datastructures import Mesh
 import igl
 
 from seam.utils import utils, primitive
-from seam.boundary import seam_crv, boundary_crv, distance_calculation
+from seam.boundary import boundary_crv, seam_crv, distance_calculation
 from seam.Branch import discrete_curve, boundary_control
 
 import logging
@@ -45,16 +45,16 @@ if __name__ == "__main__":
 
     seam_ids_list = []
     for seam_pts in seams_pts:
-        ids = seam_crv.get_seam_vertex_indices(mesh, seam_pts)
+        ids = boundary_crv.get_seam_vertex_indices(mesh, seam_pts)
         seam_ids_list.append(ids)
 
     ## get differences from each seams and get curve points ##
-    differences = boundary_crv.get_distance_differences_between_two_seams(mesh, seam_ids_list, time=0.5, ABS=False)
+    differences = seam_crv.get_distance_differences_between_two_seams(mesh, seam_ids_list, time=0.5, ABS=False)
     print("differences :", differences)
-    crv_pts = boundary_crv.get_curve_pts_from_distance_differences_on_Mesh(mesh, differences)
+    crv_pts = seam_crv.get_curve_pts_from_distance_differences_on_Mesh(mesh, differences)
 
     ## split mesh ##
-    mesh00, mesh01 = boundary_crv.split_mesh_with_single_differences_crv(mesh, differences)
+    mesh00, mesh01 = seam_crv.split_mesh_with_single_differences_crv(mesh, differences)
 
     mesh00.to_obj(filepath=os.path.join(DATA_PATH, OBJ_OUTPUT_NAME[0]))
     mesh01.to_obj(filepath=os.path.join(DATA_PATH, OBJ_OUTPUT_NAME[1]))

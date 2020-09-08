@@ -24,15 +24,16 @@ class Skeleton:
         self.topology = skeleton_topology
         self.all_vertices_data = all_vertices_data
         self.start_and_node = start_and_node_vertices
+        self.node_vertex_key = self.start_and_node["node_vertices"]
+        self.start_vertex_key = self.start_and_node["start_vertices"]
 
         ### setting ###
-        self.branch_keys = []
-        self.create_branch_keys_list()
+        self.branch_keys = self.create_branch_keys_list()
 
         self.all_vertices = []
         self.get_all_vertex()
 
-        self.branch_vertex_vertices = {}
+        self.branch_vertex_dict = {}
         self.get_branch_vertex_indices()
 
         ### output ###
@@ -42,16 +43,23 @@ class Skeleton:
         self.vPlanes = {}
         self.vPlanes_const = {}
         self.vPlanes_data = {}
-
+        ## execute ##
         self.get_vNormals_vBinorms_vPlanes()
+
+        ## cull the planes on the node ##
+        self.vPlanes_without_node, \
+        self.vPlanes_const_without_node, \
+        self.vPlanes_data_without_node = self.cull_node_planes()
 
     def get_all_vertex(self):
         vertices = utils.convert_data_pts_list_to_compas_pts(self.all_vertices_data)
         self.all_vertices = vertices
 
     def create_branch_keys_list(self):
+        branch_keys = []
         for i in range(len(self.topology)):
-            self.branch_keys.append(i)
+            branch_keys.append(i)
+        return branch_keys
 
     def flatten_topology_to_keys(self, list_list):
         indices = []
@@ -66,7 +74,7 @@ class Skeleton:
             edge_topos = self.topology[str(branchID)]
             indices = self.flatten_topology_to_keys(edge_topos)
             print(indices)
-            self.branch_vertex_vertices[branchID] = indices
+            self.branch_vertex_dict[branchID] = indices
 
     def get_vertices_from_branchID(self, branchID):
         branch = self.topology[str(branchID)]
@@ -80,7 +88,7 @@ class Skeleton:
 
     def get_vNormals_vBinorms_vPlanes(self):
         for branchID in self.branch_keys:
-            indices = self.branch_vertex_vertices[branchID]
+            indices = self.branch_vertex_dict[branchID]
             branch_vertices = []
             for index in indices:
                 vertex = self.all_vertices[index]
@@ -101,6 +109,34 @@ class Skeleton:
 
             planes_data = Vector_Family.planes_data
             self.vPlanes_data[branchID] = planes_data
+
+    def cull_node_planes(self):
+        vPlanes_without_node = {}
+        vPlanes_const_without_node = {}
+        vPlanes_data_without_node = {}
+        for branch_key in self.branch_keys:
+            branch_vPlanes = self.vPlanes[branch_key]
+            branch_vPlanes_const = self.vPlanes_const[branch_key]
+            branch_vPlanes_data = self.vPlanes_data[branch_key]
+            vertex_keys = self.branch_vertex_dict[branch_key]
+            ## set new list in the new dict ##
+            vPlanes_without_node[branch_key] = []
+            vPlanes_const_without_node[branch_key] = []
+            vPlanes_data_without_node[branch_key] = []
+            for i, key in enumerate(vertex_keys):
+                if key in self.node_vertex_key:
+                    pass
+                else:
+                    vPlane = branch_vPlanes[i]
+                    vPlanes_without_node[branch_key].append(vPlane)
+                    vPlane_const = branch_vPlanes_const[i]
+                    vPlanes_const_without_node[branch_key].append(vPlane_const)
+                    vPlane_data = branch_vPlanes_data[i]
+                    vPlanes_data_without_node[branch_key].append(vPlane_data)
+        return vPlanes_without_node, vPlanes_const_without_node, vPlanes_data_without_node
+
+
+
 
 
 

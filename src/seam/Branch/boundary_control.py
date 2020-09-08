@@ -3,7 +3,6 @@ import math
 import numpy as np
 
 from compas.geometry import Vector, Point, Rotation, Circle, Plane, Polyline
-from compas_blender.geometry import BlenderGeometry, BlenderCurve
 
 from seam.Branch import skeleton_data
 import seam.utils.utils as utils

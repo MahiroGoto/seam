@@ -19,7 +19,7 @@ logger.addHandler(file_handler)
 #######################################
 ### Rhino utils for communicating
 #######################################
-
+"""
 def save_Json_from_gh(data, path, folder, name):
     print("name :", name)
     filename = os.path.join(path, folder, name)
@@ -36,13 +36,30 @@ def convert_pts_list_to_dict_data(pts_list):
 def convert_pts_list_to_data(pts_list):
     pts_coord = []
     for i, pt in enumerate(pts_list):
-        pts_coord.append([ pt.X, pt.Y, pt.Z ])
+        pts_coord.append([pt.X, pt.Y, pt.Z])
     return pts_coord
 
+def convert_pts_data_list_to_gh_pts(pts_data_list):
+    pts = []
+    for pt_data in pts_data_list:
+        pt = rg.Point3d(pt_data[0], pt_data[1], pt_data[2])
+        pts.append(pt)
+    return pts
+"""
+
+#######################################
+## helper function ##
+#######################################
+def interrupt():
+    value = input("Press enter to continue, Press 1 to abort ")
+    print("")
+    if isinstance(value, str):
+        if value == '1':
+            raise ValueError("Aborted")
 
 
 #######################################
-### Json utils
+## Json utils ##
 #######################################
 
 ### load Json file
@@ -52,27 +69,6 @@ def load_from_Json(path, name):
         data = json.load(f)
     logger.info('Loaded Json: ' + filename)
     return data
-
-
-# def isocurves_segments_to_json(segments, path, name):
-#     data = {}
-#     for i, segment in enumerate(segments):
-#         data['Segment_' + str(i)] = {}
-#         for j, isocurve in enumerate(segment.isocurves):
-#             data['Segment_' + str(i)]['Isocurve_' + str(j)] = [point_coords(pt) for pt in isocurve.points \
-#                                                                if not math.isnan(pt[0]) and not math.isnan(
-#                     pt[1]) and not math.isnan(pt[2])]
-#     save_json(data, path, name)
-#
-#
-# def isocurves_to_json(isocurves, path, name):
-#     data = {}
-#     for i, isocurve in enumerate(isocurves):
-#         for pt in isocurve.points:
-#             data[i] = [point_coords(pt) for pt in isocurve.points \
-#                        if not math.isnan(pt[0]) and not math.isnan(pt[1]) and not math.isnan(pt[2])]
-#     save_json(data, path, name)
-
 
 def save_json(data, path, name):
     filename = os.path.join(path, name)
@@ -86,25 +82,35 @@ def save_json(data, path, name):
 ### convert from compas to data
 #######################################
 
-def convert_compas_Point_to_Data(compasPt):
+def convert_compas_pt_to_Data(compasPt):
     pt = [compasPt.x, compasPt.y, compasPt.z]
     return pt
 
-def convert_compas_Points_list_to_Data(compasPts_list):
+def convert_compas_pts_list_to_Data(compasPts_list):
     pts_list = []
     for compasPt in compasPts_list:
-        pt = convert_compas_Point_to_Data(compasPt)
+        pt = convert_compas_pt_to_Data(compasPt)
         pts_list.append(pt)
     return pts_list
 
-def convert_compas_vector_to_Data(compasVector):
+def convert_compas_pts_list_list_to_Data(compas_pts_list_list):
+    data_list_list = []
+    for pt_list in compas_pts_list_list:
+        data_list = []
+        for pt in pt_list:
+            pt_data = convert_compas_pt_to_Data(pt)
+            data_list.append(pt_data)
+        data_list_list.append(data_list)
+    return data_list_list
+
+def convert_compas_vec_to_Data(compasVector):
     vec_data = [compasVector.x, compasVector.y, compasVector.z]
     return vec_data
 
-def convert_compas_vectors_list_to_Data(compasVectors_list):
+def convert_compas_vecs_list_to_Data(compasVectors_list):
     vec_data_list = []
     for vec in compasVectors_list:
-        vec_data = convert_compas_vector_to_Data(vec)
+        vec_data = convert_compas_vec_to_Data(vec)
         vec_data_list.append(vec_data)
     return vec_data_list
 
@@ -125,6 +131,13 @@ def convert_data_pts_list_to_compas_pts(pt_data_list, ROUND=False):
             compasPt= Point(pt_data[0], pt_data[1], pt_data[2])
         compasPt_list.append(compasPt)
     return compasPt_list
+
+def convert_data_pts_list_list_to_compas_pts(pt_data_list_list, ROUND=False):
+    compasPt_list_list = []
+    for pt_data_list in pt_data_list_list:
+        compasPt_list = convert_data_pts_list_to_compas_pts(pt_data_list, ROUND)
+        compasPt_list_list.append(compasPt_list)
+    return compasPt_list_list
 
 def convert_data_vectors_list_to_compas_vectors(vectors_data_list, ROUND=False):
     """
@@ -155,6 +168,30 @@ def select_closest_pt_from_list(Point, pt_list):
         if distance == min_dis:
             closest_point = pt
     return closest_point, min_dis
+
+def flatten_list_list_to_list(list_list):
+    flatten = []
+    for list in list_list:
+        for item in list:
+            flatten.append(item)
+    return flatten
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

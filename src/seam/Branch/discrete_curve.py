@@ -2,7 +2,6 @@ from typing import Dict, Union
 import math
 import numpy as np
 
-import splipy
 from compas.geometry import Vector, Point, Rotation, Circle, Plane, Polyline, intersection_line_line
 
 
@@ -79,61 +78,85 @@ class PolyVertex_Vector_Family:
         self.get_planes_data()
 
     def get_normals_on_vertices(self):
-        threePts_string = zip(self.pts_list[:-2], self.pts_list[1:-1], self.pts_list[2:])
-        for threePts in threePts_string:
-            normal, radius, centrePt = calculate_normal_on_vertex_with_three_pts(threePts)
+        if len(self.pts_list) > 2:
+            threePts_string = zip(self.pts_list[:-2], self.pts_list[1:-1], self.pts_list[2:])
+            for threePts in threePts_string:
+                normal, radius, centrePt = calculate_normal_on_vertex_with_three_pts(threePts)
+                self.normals.append(normal)
+            ## first vertex ##
+            vecfirst = self.pts_list[0] - self.pts_list[1]
+            vecsecond = self.pts_list[2] - self.pts_list[1]
+            binormal_temp = vecfirst.cross(vecsecond)
+            binormal = binormal_temp.unitized()
+            normal_temp = vecfirst.cross(binormal)
+            normal = normal_temp.unitized()
+            self.normals.insert(0, normal)
+            ## last vertex ##
+            veclast = self.pts_list[-1] - self.pts_list[-2]
+            vecseclast = self.pts_list[-3] - self.pts_list[-2]
+            binormal_temp = vecseclast.cross(veclast)
+            binormal = binormal_temp.unitized()
+            normal_temp = binormal.cross(veclast)
+            normal = normal_temp.unitized()
             self.normals.append(normal)
-        ## first vertex ##
-        vecfirst = self.pts_list[0] - self.pts_list[1]
-        vecsecond = self.pts_list[2] - self.pts_list[1]
-        binormal_temp = vecfirst.cross(vecsecond)
-        binormal = binormal_temp.unitized()
-        normal_temp = vecfirst.cross(binormal)
-        normal = normal_temp.unitized()
-        self.normals.insert(0, normal)
-        ## last vertex ##
-        veclast = self.pts_list[-1] - self.pts_list[-2]
-        vecseclast = self.pts_list[-3] - self.pts_list[-2]
-        binormal_temp = vecseclast.cross(veclast)
-        binormal = binormal_temp.unitized()
-        normal_temp = binormal.cross(veclast)
-        normal = normal_temp.unitized()
-        self.normals.append(normal)
+        else:
+            firstPt = self.pts_list[0]
+            lastPt = self.pts_list[1]
+            vec = firstPt - lastPt
+            normal = vec.cross(Vector(-1,0,0))
+            normal.unitize()
+            self.normals.append(normal)
+            self.normals.append(normal)
 
     def get_binorms_on_vertices(self):
-        threePts_string = zip(self.pts_list[:-2], self.pts_list[1:-1], self.pts_list[2:])
-        for threePts in threePts_string:
-            vecA = threePts[0] - threePts[1]
-            vecB = threePts[2] - threePts[1]
-            binorm_temp = vecA.cross(vecB)
-            binorm = binorm_temp.unitized()
+        if len(self.pts_list) > 2:
+            threePts_string = zip(self.pts_list[:-2], self.pts_list[1:-1], self.pts_list[2:])
+            for threePts in threePts_string:
+                vecA = threePts[0] - threePts[1]
+                vecB = threePts[2] - threePts[1]
+                binorm_temp = vecA.cross(vecB)
+                binorm = binorm_temp.unitized()
+                self.binorms.append(binorm)
+            ## first binorm ##
+            first_binorm = self.binorms[0]
+            self.binorms.insert(0, first_binorm)
+            ## last binorm ##
+            last_binom = self.binorms[-1]
+            self.binorms.append(last_binom)
+        else:
+            firstPt = self.pts_list[0]
+            lastPt = self.pts_list[1]
+            vec = firstPt - lastPt
+            binorm = vec.cross(Vector(0,1,0))
+            binorm.unitize()
             self.binorms.append(binorm)
-        ## first binorm ##
-        first_binorm = self.binorms[0]
-        self.binorms.insert(0, first_binorm)
-        ## last binorm ##
-        last_binom = self.binorms[-1]
-        self.binorms.append(last_binom)
+            self.binorms.append(binorm)
 
     def get_tangents_on_vertices(self):
-        for i in range(len(self.pts_list)):
-            normal = self.normals[i]
-            binorm = self.binorms[i]
-            tangent_temp = normal.cross(binorm)
-            tangent = tangent_temp.unitized()
-            self.tangets.append(tangent)
+        if len(self.pts_list) > 0:
+            for i in range(len(self.pts_list)):
+                normal = self.normals[i]
+                binorm = self.binorms[i]
+                tangent_temp = normal.cross(binorm)
+                tangent = tangent_temp.unitized()
+                self.tangets.append(tangent)
+        else:
+            for normal in self.normals:
+                self.tangets.append(normal)
 
     def get_planes_vertices(self):
-        for i, vertex in enumerate(self.pts_list):
-            normal = self.normals[i]
-            binorm = self.binorms[i]
-            if i != 0:
-                if self.normals[i-1].angle(normal) > 0.5*math.pi and \
-                        self.binorms[i-1].angle(binorm) > 0.5*math.pi:
-                    normal = normal*(-1)
-                    binorm = binorm*(-1)
-            plane = Plane.from_point_and_two_vectors(vertex, normal, binorm)
-            self.planes.append(plane)
+        if len(self.pts_list) > 0:
+            for i, vertex in enumerate(self.pts_list):
+                normal = self.normals[i]
+                binorm = self.binorms[i]
+                if i != 0:
+                    if self.normals[i-1].angle(normal) > 0.5*math.pi and \
+                            self.binorms[i-1].angle(binorm) > 0.5*math.pi:
+                        normal = normal*(-1)
+                        binorm = binorm*(-1)
+                plane = Plane.from_point_and_two_vectors(vertex, normal, binorm)
+                self.planes.append(plane)
+
 
     def get_planes_constitution(self):
         """

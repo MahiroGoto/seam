@@ -3,7 +3,7 @@
 seam
 *********************************************************
 
-.. current module:: seams
+.. current module:: seam
 
 .. toctree ::
     :maxdepth: 1
@@ -14,6 +14,7 @@ seam
 from __future__ import print_function
 import compas
 import os
+import sys
 
 __author__ = ["Mahiro Goto"]
 __copyright__ = "MIT License"

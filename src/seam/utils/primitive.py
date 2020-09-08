@@ -5,7 +5,6 @@ import math
 
 from compas.geometry import Point, Vector, Circle, Rotation, Plane
 from compas.geometry import Transformation
-from compas_blender.geometry import BlenderCurve
 
 import logging
 ## logging settings ##
