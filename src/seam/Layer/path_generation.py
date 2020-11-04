@@ -130,18 +130,21 @@ class Get_Sequence:
     ##################################################################################################################
     ## creation of layer path of two brancing connection by distance differecnes ##
     def differences_function_two_boundaries(self, base_boundary_num,
+                                            addLayer = 0,
                                             untilTime=0.5,
                                             minValue=0.5,
                                             frequency=2.7):
         difs_list = []
         if minValue < 0.7:
-            add = 1 + (0.7 - minValue) * 1.0
-            layer_num = int(round(self.layer_num * add, 0))
+            add = 1 + (0.7 - minValue) * 1.2
+            layer_num = int(round(self.layer_num * add, 0)) + addLayer
             time_step = 1 / layer_num
-            logger.info("changed layer num :" + str(layer_num))
         else:
-            layer_num = self.layer_num
-            time_step = self.time_step
+            layer_num = self.layer_num + addLayer
+            time_step = 1 / layer_num
+
+        if minValue == 1:
+            untilTime = untilTime + 0.1
 
         for i in range(layer_num):
             if i == 0:
@@ -160,7 +163,7 @@ class Get_Sequence:
                                                                  minValue=minValue,
                                                                  frequency=frequency)
             difs_list.append(difs)
-        return difs_list
+        return difs_list, layer_num
         # if diftype == 0:
         #     for i in range(self.layer_num):
         #         if i == self.layer_num - 1:
@@ -229,13 +232,14 @@ class Get_Sequence:
         # return difs_list
 
     def create_sequence_paths_from_difs_two_boundaries(self, base_boundary_num=0,
-                                                       untilTime=0.5,
+                                                       untilTime=0.5, addLayer=0,
                                                        minValue=0.5, frequency=2.5,
                                                        matchPathDirection=True,
                                                        modifyStartingPathPt=True):
-        difs_list = self.differences_function_two_boundaries(base_boundary_num=base_boundary_num,
-                                                             untilTime=untilTime,
-                                                             minValue=minValue, frequency=frequency)
+        difs_list, layer_num = self.differences_function_two_boundaries(base_boundary_num=base_boundary_num,
+                                                                        addLayer=addLayer,
+                                                                        untilTime=untilTime,
+                                                                        minValue=minValue, frequency=frequency)
         layer_pathPts_list = []
         layer_centrePt_list = []
         for difs in difs_list:
@@ -244,6 +248,50 @@ class Get_Sequence:
             layer_pathPts = seam_crv.create_layer_path_pts_from_crvPts(crvPts, double_iteration=True,
                                                                        first_resolution=0.8)
             layer_pathPts_list.append(layer_pathPts)
+
+        ## check layer height ##
+        iteration = 20
+        max_height, min_height, ave_height = self.measure_layer_heights(layer_pathPts_list)
+        print("first_max_height, first_min_height =", max_height, min_height)
+        for i in range(iteration):
+            if i != 0:
+                max_height, min_height, ave_height = self.measure_layer_heights(layer_pathPts_list)
+            if max_height > 2.1:
+                addLayer += 1
+                difs_list, layer_num = self.differences_function_two_boundaries(base_boundary_num=base_boundary_num,
+                                                                                addLayer=addLayer,
+                                                                                untilTime=untilTime,
+                                                                                minValue=minValue, frequency=frequency)
+                layer_pathPts_list = []
+                layer_centrePt_list = []
+                for difs in difs_list:
+                    crvPts, centrePt = seam_crv.get_layer_crvPts_from_distance_differences_on_Mesh(self.mesh, difs)
+                    layer_centrePt_list.append(centrePt)
+                    layer_pathPts = seam_crv.create_layer_path_pts_from_crvPts(crvPts, double_iteration=True,
+                                                                               first_resolution=0.8)
+                    layer_pathPts_list.append(layer_pathPts)
+
+            elif min_height < 0.7:
+                addLayer -= 1
+                difs_list, layer_num = self.differences_function_two_boundaries(base_boundary_num=base_boundary_num,
+                                                                                addLayer=addLayer,
+                                                                                untilTime=untilTime,
+                                                                                minValue=minValue, frequency=frequency)
+                layer_pathPts_list = []
+                layer_centrePt_list = []
+                for difs in difs_list:
+                    crvPts, centrePt = seam_crv.get_layer_crvPts_from_distance_differences_on_Mesh(self.mesh, difs)
+                    layer_centrePt_list.append(centrePt)
+                    layer_pathPts = seam_crv.create_layer_path_pts_from_crvPts(crvPts, double_iteration=True,
+                                                                               first_resolution=0.8)
+                    layer_pathPts_list.append(layer_pathPts)
+
+            else:
+                break
+
+        print("max_height, min_height =", max_height, min_height)
+        logger.info("layer num :" + str(layer_num))
+
         ## modifying the layer points ##
         if modifyStartingPathPt:
             layer_pathPts_list = self.get_proper_next_pt_in_the_next_layer(layer_pathPts_list)
@@ -254,6 +302,7 @@ class Get_Sequence:
         if matchPathDirection:
             layer_pathPts_list = self.match_the_every_layer_path_direction(layer_pathPts_list)
         return layer_pathPts_list
+
 
     ##################################################################################################################
     ## creation of layer paths of three branching node by using boundary attributes ##
@@ -266,7 +315,6 @@ class Get_Sequence:
             add = 1 + (0.9 - minValue) * 2.5
             layer_num = int(round(self.layer_num * add, 0)) + addLayer
             time_step = 1 / layer_num
-            logger.info("changed layer num :" + str(layer_num))
             for i in range(layer_num):
                 if i == 0:
                     time = time_step / 1000
@@ -289,20 +337,22 @@ class Get_Sequence:
                 elif len(self.bvkl) == 4:
                     attrs, difs = self.Distance_Attributes_four.\
                         get_attributs_from_one_base_boundary(base_boundary_num, time,
-                                                              minValue=minValue,
-                                                              frequency=frequency,
-                                                              longWayExtention=longWayExtenction)
+                                                             minValue=minValue,
+                                                             frequency=frequency,
+                                                             longWayExtention=longWayExtenction)
                     attrs_list.append(attrs)
                     difs_list.append(difs)
 
         else:
-            for i in range(self.layer_num):
+            layer_num = self.layer_num + addLayer
+            time_step = 1 / layer_num
+            for i in range(layer_num):
                 if i == 0:
-                    time = self.time_step / 1000
-                elif i == self.layer_num-1 :
-                    time = 1 - self.time_step / 1000
+                    time = time_step / 1000
+                elif i == layer_num-1:
+                    time = 1 - time_step / 1000
                 else:
-                    time = self.time_step * i
+                    time = time_step * i
                 ## time break ##
                 if time > untilTime:
                     break
@@ -318,13 +368,13 @@ class Get_Sequence:
                 elif len(self.bvkl) == 4:
                     attrs, difs = self.Distance_Attributes_four.\
                         get_attributs_from_one_base_boundary(base_boundary_num, time,
-                                                              minValue=minValue,
-                                                              frequency=frequency,
-                                                              longWayExtention=longWayExtenction)
+                                                             minValue=minValue,
+                                                             frequency=frequency,
+                                                             longWayExtention=longWayExtenction)
                     attrs_list.append(attrs)
                     difs_list.append(difs)
 
-        return attrs_list, difs_list
+        return attrs_list, difs_list, layer_num
 
 
     def create_sequence_paths_from_distance_attributes_multi_boundaries(self, base_boundary_num,
@@ -334,10 +384,11 @@ class Get_Sequence:
                                                                         matchPathDirection=True,
                                                                         modifyStartingPathPt=True):
         ## set the layer centre point for the directionMatching depending on "base_boundary_num" ##
-        attrs_list, difs_list = self.attributes_function_multi_boundaries(base_boundary_num, untilTime=untilTime, addLayer=addLayer,
-                                                                          minValue=minValue,
-                                                                          frequency=frequency,
-                                                                          longWayExtenction=longWayExtention)
+        attrs_list, difs_list, layer_num = self.attributes_function_multi_boundaries(base_boundary_num, untilTime=untilTime,
+                                                                                     addLayer=addLayer,
+                                                                                     minValue=minValue,
+                                                                                     frequency=frequency,
+                                                                                     longWayExtenction=longWayExtention)
         layer_pathPts_list = []
         layer_centrePt_list = []
         for attrs, difs in zip(attrs_list, difs_list):
@@ -356,6 +407,70 @@ class Get_Sequence:
                 layer_centrePt_list.append(centrePt)
                 layer_pathPts = seam_crv.create_layer_path_pts_from_crvPts(curve_pts)
                 layer_pathPts_list.append(layer_pathPts)
+
+        ## check layer heights ##
+        iteration = 20
+        max_height, min_height, ave_height = self.measure_layer_heights(layer_pathPts_list)
+        print("first_max_height, first_min_height =", max_height, min_height)
+        for i in range(iteration):
+            if i != 0:
+                max_height, min_height, ave_height = self.measure_layer_heights(layer_pathPts_list)
+            if max_height > 2.5:
+                addLayer += 1
+                attrs_list, difs_list, layer_num = self.attributes_function_multi_boundaries(base_boundary_num, untilTime=untilTime,
+                                                                                  addLayer=addLayer,
+                                                                                  minValue=minValue,
+                                                                                  frequency=frequency,
+                                                                                  longWayExtenction=longWayExtention)
+                layer_pathPts_list = []
+                layer_centrePt_list = []
+                for attrs, difs in zip(attrs_list, difs_list):
+                    ## get the curve_pts and centrePt of this layer ##
+                    if len(self.bvkl) == 3:
+                        curve_pts, centrePt = seam_crv. \
+                            get_layer_crvPts_from_distance_attributes_on_Mesh(self.mesh, attrs, difs,
+                                                                              base_boundary_num, path_sequence=True)
+                        layer_centrePt_list.append(centrePt)
+                        layer_pathPts = seam_crv.create_layer_path_pts_from_crvPts(curve_pts)
+                        layer_pathPts_list.append(layer_pathPts)
+                    elif len(self.bvkl) == 4:
+                        curve_pts, centrePt = seam_crv. \
+                            get_layer_crvPts_from_distance_four_attributes_on_Mesh(self.mesh, attrs, difs,
+                                                                                   base_boundary_num, path_sequence=True)
+                        layer_centrePt_list.append(centrePt)
+                        layer_pathPts = seam_crv.create_layer_path_pts_from_crvPts(curve_pts)
+                        layer_pathPts_list.append(layer_pathPts)
+
+            elif min_height < 1.0:
+                addLayer -= 1
+                attrs_list, difs_list, layer_num = self.attributes_function_multi_boundaries(base_boundary_num, untilTime=untilTime,
+                                                                                  addLayer=addLayer,
+                                                                                  minValue=minValue,
+                                                                                  frequency=frequency,
+                                                                                  longWayExtenction=longWayExtention)
+                layer_pathPts_list = []
+                layer_centrePt_list = []
+                for attrs, difs in zip(attrs_list, difs_list):
+                    ## get the curve_pts and centrePt of this layer ##
+                    if len(self.bvkl) == 3:
+                        curve_pts, centrePt = seam_crv. \
+                            get_layer_crvPts_from_distance_attributes_on_Mesh(self.mesh, attrs, difs,
+                                                                              base_boundary_num, path_sequence=True)
+                        layer_centrePt_list.append(centrePt)
+                        layer_pathPts = seam_crv.create_layer_path_pts_from_crvPts(curve_pts)
+                        layer_pathPts_list.append(layer_pathPts)
+                    elif len(self.bvkl) == 4:
+                        curve_pts, centrePt = seam_crv. \
+                            get_layer_crvPts_from_distance_four_attributes_on_Mesh(self.mesh, attrs, difs,
+                                                                                   base_boundary_num, path_sequence=True)
+                        layer_centrePt_list.append(centrePt)
+                        layer_pathPts = seam_crv.create_layer_path_pts_from_crvPts(curve_pts)
+                        layer_pathPts_list.append(layer_pathPts)
+
+            else:
+                break
+        print("max_height, min_height =", max_height, min_height)
+        logger.info("layer num :" + str(layer_num))
         ## modifying the layer points ##
         if modifyStartingPathPt and matchPathDirection:
             layer_pathPts_list = self.get_proper_next_pt_in_the_next_layer(layer_pathPts_list)
@@ -400,17 +515,109 @@ class Get_Sequence:
     def get_proper_next_pt_in_the_next_layer(self, pathPts_list):
         first_pathPts = pathPts_list[0]
         pre_first_pt = first_pathPts[0]
+        pre_last_pt = first_pathPts[-1]
         updated_pts_list = []
         updated_pts_list.append(first_pathPts)
         for i, pathPts in enumerate(pathPts_list):
             if i != 0:
                 clpts, cldistances = distance_calculation.get_closest_points_from_pts_cloud(pre_first_pt, pathPts, 2)
+                # vec01 = clpts[0] - pre_last_pt
+                # vec02 = clpts[1] - pre_last_pt
+                # vec = pre_first_pt - pre_last_pt
+                # ## select next point by calculating angle ##
+                # angle01 = vec.angle(vec01)
+                # angle02 = vec.angle(vec02)
+                # if angle01 < angle02:
+                #     start_index = pathPts.index(clpts[0])
+                # else:
+                #     start_index = pathPts.index(clpts[1])
                 start_index = pathPts.index(clpts[0])
                 updated_pathPts = pathPts[start_index:] + pathPts[:start_index]
                 updated_pts_list.append(updated_pathPts)
                 pre_first_pt = updated_pathPts[0]
+                pre_last_pt = updated_pathPts[-1]
         return updated_pts_list
 
+    def measure_layer_heights(self, layer_pathPts_list):
+        string = zip(layer_pathPts_list[:-1], layer_pathPts_list[1:])
+        layer_height_list = []
+        for pre_pathPts, post_pathPts in string:
+            pre_pathPt = pre_pathPts[0]
+            clpt, cldis = distance_calculation.get_closest_points_from_pts_cloud(pre_pathPt, post_pathPts, 1)
+            layer_height_list.append(cldis)
+        layer_height_list.sort()
+        max_height = layer_height_list[-1]
+        min_height = layer_height_list[0]
+        ave_height = sum(layer_height_list) / len(layer_height_list)
+
+        return max_height, min_height, ave_height
+
+
+#######################################################################################################################
+## modify merged sequence tool ##
+class MergedSequence:
+    def __init__(self, merged_sequence):
+        self.merged_sequence = merged_sequence
+        ## excecusion ##
+        self.modified_merged_sequence = self.modify_sequence(self.merged_sequence)
+
+    def modify_sequence(self, layer_pathPts_list):
+        updated_pts_list = self.get_proper_next_pts_in_the_next_layer(layer_pathPts_list)
+        updated_pts_list = self.match_the_every_layer_path_direction(updated_pts_list)
+        updated_pts_list = self.get_proper_next_pts_in_the_next_layer(updated_pts_list)
+        updated_pts_list = self.match_the_every_layer_path_direction(updated_pts_list)
+
+        return updated_pts_list
+
+    def get_proper_next_pts_in_the_next_layer(self, layer_pathPts_list):
+        first_pathPts = layer_pathPts_list[0]
+        pre_first_pt = first_pathPts[0]
+        pre_last_pt = first_pathPts[-1]
+        updated_pts_list = []
+        updated_pts_list.append(first_pathPts)
+        for i, pathPts in enumerate(layer_pathPts_list):
+            if i != 0:
+                clpts, cldistances = distance_calculation.get_closest_points_from_pts_cloud(pre_first_pt, pathPts, 2)
+                # vec01 = clpts[0] - pre_last_pt
+                # vec02 = clpts[1] - pre_last_pt
+                # vec = pre_first_pt - pre_last_pt
+                # ## select next point by calculating angle ##
+                # angle01 = vec.angle(vec01)
+                # angle02 = vec.angle(vec02)
+                # if angle01 < angle02:
+                #     start_index = pathPts.index(clpts[0])
+                # else:
+                #     start_index = pathPts.index(clpts[1])
+                start_index = pathPts.index(clpts[0])
+                updated_pathPts = pathPts[start_index:] + pathPts[:start_index]
+                updated_pts_list.append(updated_pathPts)
+                pre_first_pt = updated_pathPts[0]
+                pre_last_pt = updated_pathPts[-1]
+        return updated_pts_list
+
+    def match_the_every_layer_path_direction(self, layer_pathPts_list):
+        updated_pathPts_list = []
+        first_pathPts = layer_pathPts_list[0]
+        pre_pathPts = first_pathPts
+        for i, layer_pathPts in enumerate(layer_pathPts_list):
+            if i == 0:
+                updated_pathPts_list.append(layer_pathPts)
+            elif i != 0:
+                pre_direction = pre_pathPts[-1] - pre_pathPts[1]
+                pre_direction.unitize()
+                current_direction = layer_pathPts[-1] - layer_pathPts[1]
+                current_direction.unitize()
+                angle = pre_direction.angle(current_direction)
+                ## second check ##
+
+                if angle > 0.5 * math.pi:
+                    print("reverse!! ", "layer_num is :", i)
+                    layer_pathPts.reverse()
+                    updated_pathPts_list.append(layer_pathPts)
+                else:
+                    updated_pathPts_list.append(layer_pathPts)
+                pre_pathPts = layer_pathPts
+        return updated_pathPts_list
 
 
 #######################################################################################################################
@@ -430,7 +637,8 @@ class OffsetTool:
     ###########################
     ## execute tools ##
     def offset_layer_pathPts(self):
-        pre_offset = 0.5
+        pre_offset = 0.8
+        offset_wid = 2.9
         other_pieces_layers = self.get_other_pieces_layers()
         new_layerPts_list = []
         for layerPts in self.layer_pathPts_list:
@@ -456,25 +664,25 @@ class OffsetTool:
                     dis_list_.append(cl_dis_)
                 closest_ = min(dis_list_)
                 id = dis_list_.index(closest_)
-                if closest_ < 1:
+                if closest_ < 1.5:
                     is_on_others = True
-                if self.eachother:
-                    ## check if in this realm or not ##
-                    if not is_on_others:
-                        newPt = layerPt
-                        new_layerPts.append(newPt)
-                        prev = pre_offset
-                        continue
-                    dis_list = []
-                    for base_pathPts in self.base_pathPts_list:
-                        cl_dis, cl_pt = distance_calculation.\
-                            get_distance_to_pts_cloud(layerPt, base_pathPts)
-                        dis_list.append(cl_dis)
-                    closest = min(dis_list)
-                    if closest <= 1.2:
-                        is_in_realm = True
-                    else:
-                        is_in_realm = False
+                # if self.eachother:
+                #     ## check if in this realm or not ##
+                #     if not is_on_others:
+                #         newPt = layerPt
+                #         new_layerPts.append(newPt)
+                #         prev = pre_offset
+                #         continue
+                #     dis_list = []
+                #     for base_pathPts in self.base_pathPts_list:
+                #         cl_dis, cl_pt = distance_calculation.\
+                #             get_distance_to_pts_cloud(layerPt, base_pathPts)
+                #         dis_list.append(cl_dis)
+                #     closest = min(dis_list)
+                #     if closest <= 1.5:
+                #         is_in_realm = True
+                #     else:
+                #         is_in_realm = False
                 ## offset this point ##
                 if is_in_realm and is_on_others:
                     if id == 0 or id == len(dis_list_)-1:
@@ -483,7 +691,7 @@ class OffsetTool:
                         add = 0
                     vector = layerPt - centrePt
                     vector.unitize()
-                    vector.scale(2.5-prev-add)
+                    vector.scale(offset_wid-prev-add)
                     vector = vector.scaled(-1)
                     newPt = layerPt + vector
                     prev = 0

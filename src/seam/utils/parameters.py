@@ -1,7 +1,7 @@
 parameters = {
     ### --- isocurves generation
     # 'isocurves_simplification_threshold': 0.8,
-    'layer_path_pt_span': 5.0,
+    'layer_path_pt_span': 3.8,
 
     'min_layer_height': 0.8,
     'max_layer_height': 1.6,

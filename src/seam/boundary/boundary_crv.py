@@ -56,7 +56,7 @@ def get_boundary_vertex_keys_list_from_seam_pts_list(mesh, seams_pts):
 
 class Boundary:
     """
-    get "seam_pts_list" and "seam_vertex_keys_list"
+    get "boundary_pts_list" and "boundary_vertex_keys_list"
     """
     def __init__(self, MESH, boundary_pts_data_list):
         self.boundary_pts_data_list = boundary_pts_data_list
@@ -103,11 +103,6 @@ def get_proper_boundary_centrePt_on_branching_node(mesh, boundary_distances, max
             dif = max_distance * time - distance
             difs.append(dif)
         curve_pts, centrePt = seam_crv.get_layer_crvPts_from_distance_differences_on_Mesh(mesh, difs)
-        # print("pt :", curve_pts[0])
-        # x = sum([pt.x for pt in curve_pts]) / len(curve_pts)
-        # y = sum([pt.y for pt in curve_pts]) / len(curve_pts)
-        # z = sum([pt.z for pt in curve_pts]) / len(curve_pts)
-        # centrePt = Point(x, y, z)
         skeletonPts.append(centrePt)
         length = seam_crv.layer_curve_length(curve_pts)
         if i == 0:

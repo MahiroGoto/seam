@@ -217,6 +217,7 @@ if layer_compute:
             other_pieces = [sequencePts_002]
             second_offset = path_generation.OffsetTool(sequencePts_000, other_pieces)
             sequencePts_000 = second_offset.offset_layer_pathPts()
+
         ## convert and save as json ##
         sequencePts_000_data = utils.convert_compas_pts_list_list_to_Data(sequencePts_000)
         utils.save_json(sequencePts_000_data, DATA_PATH, "sequencePts_000_data.json")
@@ -271,6 +272,7 @@ if layer_compute:
             other_pieces = [sequencePts_002]
             second_offset = path_generation.OffsetTool(sequencePts_000, other_pieces)
             sequencePts_000 = second_offset.offset_layer_pathPts()
+
         ## convert and save as json ##
         sequencePts_000_data = utils.convert_compas_pts_list_list_to_Data(sequencePts_000)
         utils.save_json(sequencePts_000_data, DATA_PATH, "sequencePts_000_data.json")
@@ -280,36 +282,3 @@ if layer_compute:
         utils.save_json(sequencePts_002_data, DATA_PATH, "sequencePts_002_data.json")
         sequencePts_003_data = utils.convert_compas_pts_list_list_to_Data(sequencePts_003)
         utils.save_json(sequencePts_003_data, DATA_PATH, "sequencePts_003_data.json")
-
-# if modify_merging:
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

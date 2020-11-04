@@ -389,7 +389,7 @@ def create_layer_path_pts_from_crvPts(crvPts, double_iteration=True, first_resol
     if double_iteration:
         ## first iteration ##
         crv_length = layer_curve_length(crvPts)
-        print("crv_length :", crv_length)
+        # print("crv_length :", crv_length)
         path_pt_span = parameters.get_param("layer_path_pt_span")
         path_pt_span = path_pt_span * first_resolution
         path_pt_num = int(round(crv_length / path_pt_span, 0))
@@ -427,8 +427,6 @@ def create_layer_path_pts_from_crvPts(crvPts, double_iteration=True, first_resol
             path_pt = get_point_on_polyline_pts_list_with_length(crvPts, aim_length)
             if path_pt not in path_pts:
                 path_pts.append(path_pt)
-
-
 
     return path_pts
 
